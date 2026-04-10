@@ -93,8 +93,6 @@ resource "aws_vpc_security_group_ingress_rule" "ec2_ssh_from_eice" {
 
 resource "aws_vpc_security_group_egress_rule" "ec2_all" {
   security_group_id = aws_security_group.ec2.id
-  from_port         = 0
-  to_port           = 0
   ip_protocol       = "-1"
   cidr_ipv4         = "0.0.0.0/0"
 }
