@@ -11,7 +11,7 @@
 - EC2 インスタンス（Amazon Linux 2023)
 - セキュリティグループ
 
-![]("assets/vpc.png")
+![](assets/vpc.png)
 
 ## 接続
 
