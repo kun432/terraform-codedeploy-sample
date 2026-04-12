@@ -22,8 +22,32 @@ variable "public_subnet_cidr" {
   default     = "10.0.1.0/24"
 }
 
+variable "public_subnet_secondary_cidr" {
+  description = "CIDR block for the secondary public subnet."
+  type        = string
+  default     = "10.0.2.0/24"
+}
+
 variable "instance_type" {
   description = "EC2 instance type."
   type        = string
   default     = "t3.micro"
+}
+
+variable "autoscaling_min_size" {
+  description = "Minimum number of instances in the Auto Scaling group."
+  type        = number
+  default     = 1
+}
+
+variable "autoscaling_max_size" {
+  description = "Maximum number of instances in the Auto Scaling group."
+  type        = number
+  default     = 1
+}
+
+variable "autoscaling_desired_capacity" {
+  description = "Desired number of instances in the Auto Scaling group."
+  type        = number
+  default     = 1
 }

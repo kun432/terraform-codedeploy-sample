@@ -8,14 +8,24 @@ output "public_subnet_id" {
   value       = aws_subnet.public.id
 }
 
-output "instance_id" {
-  description = "Created EC2 instance ID."
-  value       = aws_instance.app.id
+output "public_secondary_subnet_id" {
+  description = "Created secondary public subnet ID."
+  value       = aws_subnet.public_secondary.id
 }
 
-output "instance_public_ip" {
-  description = "Public IP address assigned to the instance."
-  value       = aws_instance.app.public_ip
+output "launch_template_id" {
+  description = "Created launch template ID."
+  value       = aws_launch_template.app.id
+}
+
+output "autoscaling_group_name" {
+  description = "Created Auto Scaling group name."
+  value       = aws_autoscaling_group.app.name
+}
+
+output "alb_dns_name" {
+  description = "DNS name of the Application Load Balancer."
+  value       = aws_lb.app.dns_name
 }
 
 output "ec2_instance_connect_endpoint_id" {

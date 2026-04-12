@@ -35,6 +35,17 @@ resource "aws_subnet" "public" {
   }
 }
 
+resource "aws_subnet" "public_secondary" {
+  vpc_id                  = aws_vpc.main.id
+  cidr_block              = var.public_subnet_secondary_cidr
+  availability_zone       = data.aws_availability_zones.available.names[1]
+  map_public_ip_on_launch = true
+
+  tags = {
+    Name = "${var.project_name}-public-subnet-secondary"
+  }
+}
+
 resource "aws_route_table" "public" {
   vpc_id = aws_vpc.main.id
 
@@ -53,6 +64,11 @@ resource "aws_route_table_association" "public" {
   route_table_id = aws_route_table.public.id
 }
 
+resource "aws_route_table_association" "public_secondary" {
+  subnet_id      = aws_subnet.public_secondary.id
+  route_table_id = aws_route_table.public.id
+}
+
 resource "aws_security_group" "ec2_instance_connect_endpoint" {
   name        = "${var.project_name}-eice-sg"
   description = "Allow EC2 Instance Connect Endpoint to reach the target instance over SSH"
@@ -63,9 +79,19 @@ resource "aws_security_group" "ec2_instance_connect_endpoint" {
   }
 }
 
+resource "aws_security_group" "alb" {
+  name        = "${var.project_name}-alb-sg"
+  description = "Allow HTTP from the internet to the ALB"
+  vpc_id      = aws_vpc.main.id
+
+  tags = {
+    Name = "${var.project_name}-alb-sg"
+  }
+}
+
 resource "aws_security_group" "ec2" {
   name        = "${var.project_name}-ec2-sg"
-  description = "Allow HTTP from the internet and SSH only from EC2 Instance Connect Endpoint"
+  description = "Allow HTTP only from the ALB and SSH only from EC2 Instance Connect Endpoint"
   vpc_id      = aws_vpc.main.id
 
   tags = {
@@ -73,13 +99,28 @@ resource "aws_security_group" "ec2" {
   }
 }
 
-resource "aws_vpc_security_group_ingress_rule" "ec2_http" {
-  security_group_id = aws_security_group.ec2.id
+resource "aws_vpc_security_group_ingress_rule" "alb_http" {
+  security_group_id = aws_security_group.alb.id
   description       = "HTTP from anywhere"
   from_port         = 80
   to_port           = 80
   ip_protocol       = "tcp"
   cidr_ipv4         = "0.0.0.0/0"
+}
+
+resource "aws_vpc_security_group_egress_rule" "alb_all" {
+  security_group_id = aws_security_group.alb.id
+  ip_protocol       = "-1"
+  cidr_ipv4         = "0.0.0.0/0"
+}
+
+resource "aws_vpc_security_group_ingress_rule" "ec2_http_from_alb" {
+  security_group_id            = aws_security_group.ec2.id
+  description                  = "HTTP only from the ALB"
+  from_port                    = 80
+  to_port                      = 80
+  ip_protocol                  = "tcp"
+  referenced_security_group_id = aws_security_group.alb.id
 }
 
 resource "aws_vpc_security_group_ingress_rule" "ec2_ssh_from_eice" {
@@ -115,22 +156,116 @@ resource "aws_ec2_instance_connect_endpoint" "main" {
   }
 }
 
-resource "aws_instance" "app" {
-  ami                         = data.aws_ssm_parameter.amazon_linux_2023_ami.value
-  instance_type               = var.instance_type
-  subnet_id                   = aws_subnet.public.id
-  vpc_security_group_ids      = [aws_security_group.ec2.id]
-  associate_public_ip_address = true
+resource "aws_lb" "app" {
+  name               = "${var.project_name}-alb"
+  load_balancer_type = "application"
+  internal           = false
+  security_groups    = [aws_security_group.alb.id]
+  subnets = [
+    aws_subnet.public.id,
+    aws_subnet.public_secondary.id,
+  ]
 
-  # Amazon Linux 2023 standard AMI includes EC2 Instance Connect.
-  key_name = null
+  tags = {
+    Name = "${var.project_name}-alb"
+  }
+}
+
+resource "aws_lb_target_group" "app" {
+  name     = "${var.project_name}-tg"
+  port     = 80
+  protocol = "HTTP"
+  vpc_id   = aws_vpc.main.id
+
+  health_check {
+    enabled             = true
+    path                = "/"
+    protocol            = "HTTP"
+    matcher             = "200-399"
+    healthy_threshold   = 2
+    unhealthy_threshold = 2
+  }
+
+  tags = {
+    Name = "${var.project_name}-tg"
+  }
+}
+
+resource "aws_lb_listener" "http" {
+  load_balancer_arn = aws_lb.app.arn
+  port              = 80
+  protocol          = "HTTP"
+
+  default_action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.app.arn
+  }
+}
+
+resource "aws_launch_template" "app" {
+  name_prefix   = "${var.project_name}-lt-"
+  image_id      = data.aws_ssm_parameter.amazon_linux_2023_ami.value
+  instance_type = var.instance_type
+  key_name      = null
+
+  network_interfaces {
+    associate_public_ip_address = true
+    security_groups             = [aws_security_group.ec2.id]
+  }
 
   metadata_options {
     http_endpoint = "enabled"
     http_tokens   = "required"
   }
 
+  tag_specifications {
+    resource_type = "instance"
+
+    tags = {
+      Name = "${var.project_name}-ec2"
+    }
+  }
+
+  tag_specifications {
+    resource_type = "volume"
+
+    tags = {
+      Name = "${var.project_name}-ec2"
+    }
+  }
+
   tags = {
-    Name = "${var.project_name}-ec2"
+    Name = "${var.project_name}-lt"
+  }
+}
+
+resource "aws_autoscaling_group" "app" {
+  name             = "${var.project_name}-asg"
+  min_size         = var.autoscaling_min_size
+  max_size         = var.autoscaling_max_size
+  desired_capacity = var.autoscaling_desired_capacity
+  vpc_zone_identifier = [
+    aws_subnet.public.id,
+    aws_subnet.public_secondary.id,
+  ]
+  health_check_type         = "ELB"
+  health_check_grace_period = 300
+  target_group_arns         = [aws_lb_target_group.app.arn]
+
+  launch_template {
+    id      = aws_launch_template.app.id
+    version = "$Latest"
+  }
+
+  tag {
+    key                 = "Name"
+    value               = "${var.project_name}-ec2"
+    propagate_at_launch = true
+  }
+
+  tag {
+    key                 = "AutoScalingGroup"
+    value               = "${var.project_name}-asg"
+    propagate_at_launch = true
   }
 }
