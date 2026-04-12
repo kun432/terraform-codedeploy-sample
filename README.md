@@ -4,6 +4,8 @@
 
 注意: CodeDeploy の設定やデプロイするアプリケーションの設定は別途必要です。
 
+注意: EC2 単体構成の場合は、`main` ブランチを参照してください。
+
 ## このリポジトリで作るもの
 
 - VPC（Internet Gateway / Route Table / Public Subnet x 2）
