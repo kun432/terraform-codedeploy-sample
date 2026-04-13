@@ -51,3 +51,9 @@ variable "autoscaling_desired_capacity" {
   type        = number
   default     = 1
 }
+
+variable "codedeploy_bucket_name" {
+  description = "S3 bucket name for CodeDeploy revisions."
+  type        = string
+  default     = "revisions"
+}

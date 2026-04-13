@@ -32,3 +32,8 @@ output "ec2_instance_connect_endpoint_id" {
   description = "Created EC2 Instance Connect Endpoint ID."
   value       = aws_ec2_instance_connect_endpoint.main.id
 }
+
+output "codedeploy_bucket_name" {
+  description = "Created S3 bucket name for CodeDeploy revisions."
+  value       = aws_s3_bucket.codedeploy.bucket
+}

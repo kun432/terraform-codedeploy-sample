@@ -156,6 +156,41 @@ resource "aws_ec2_instance_connect_endpoint" "main" {
   }
 }
 
+resource "aws_s3_bucket" "codedeploy" {
+  bucket = "${var.project_name}-${var.codedeploy_bucket_name}"
+
+  tags = {
+    Name = "${var.project_name}-codedeploy"
+  }
+}
+
+resource "aws_s3_bucket_versioning" "codedeploy" {
+  bucket = aws_s3_bucket.codedeploy.id
+
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
+resource "aws_s3_bucket_server_side_encryption_configuration" "codedeploy" {
+  bucket = aws_s3_bucket.codedeploy.id
+
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm = "AES256"
+    }
+  }
+}
+
+resource "aws_s3_bucket_public_access_block" "codedeploy" {
+  bucket = aws_s3_bucket.codedeploy.id
+
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
 resource "aws_lb" "app" {
   name               = "${var.project_name}-alb"
   load_balancer_type = "application"
