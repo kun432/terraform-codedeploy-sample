@@ -37,7 +37,7 @@ variable "instance_type" {
 variable "autoscaling_min_size" {
   description = "Minimum number of instances in the Auto Scaling group."
   type        = number
-  default     = 1
+  default     = 0
 }
 
 variable "autoscaling_max_size" {
@@ -49,7 +49,7 @@ variable "autoscaling_max_size" {
 variable "autoscaling_desired_capacity" {
   description = "Desired number of instances in the Auto Scaling group."
   type        = number
-  default     = 1
+  default     = 0
 }
 
 variable "codedeploy_bucket_name" {
